@@ -111,16 +111,20 @@ int main()
 	// The random number is a js implementation of the Xorshift PRNG
 	Number randseed[4]; // Xorshift: [x, y, z, w] 32 bit values
 
-	auto seedrand = [&](const auto& seed) {
-		for (auto i = 0; i < 4; i++) {
+	auto seedrand = [&](const auto& seed)
+	{
+		for (auto i = 0; i < 4; i++)
+		{
 			randseed[i] = 0;
 		}
-		for (auto i = 0; i < seed.size(); i++) {
-			randseed[i%4] = ((randseed[i%4] << 5) - randseed[i%4]) + seed[i];
+		for (auto i = 0; i < seed.size(); i++)
+		{
+			randseed[i % 4] = ((randseed[i % 4] << 5) - randseed[i % 4]) + seed[i];
 		}
 	};
 
-	auto rand = [&]() {
+	auto rand = [&]()
+	{
 		// based on Java's String.hashCode(), expanded to 4 32bit values
 		auto t = randseed[0] ^ (randseed[0] << 11);
 
@@ -132,7 +136,8 @@ int main()
 		return unsignedShiftRight(randseed[3], 0) / unsignedShiftRight(1 << 31, 0);
 	};
 
-	auto createColor = [&]() {
+	auto createColor = [&]()
+	{
 		//saturation is the whole color spectrum
 		Number h = floor(rand() * 360);
 		//saturation goes from 40 to 100, it avoids greyish colors
@@ -144,7 +149,8 @@ int main()
 		return color;
 	};
 
-	auto createImageData = [&](const auto& size) {
+	auto createImageData = [&](const auto& size)
+	{
 		auto width = size; // Only support square icons for now
 		auto height = size;
 
@@ -152,18 +158,21 @@ int main()
 		auto mirrorWidth = width - dataWidth;
 
 		auto data = {};
-		for(auto y = 0; y < height; y++) {
+		for (auto y = 0; y < height; y++)
+		{
 			auto row = {};
-			for(auto x = 0; x < dataWidth; x++) {
+			for (auto x = 0; x < dataWidth; x++)
+			{
 				// this makes foreground and background color to have a 43% (1/2.3) probability
 				// spot color has 13% chance
-				row[x] = floor(rand()*2.3);
+				row[x] = floor(rand() * 2.3);
 			}
 			auto r = row.slice(0, mirrorWidth);
 			r.reverse();
 			row = row.concat(r);
 
-			for(auto i = 0; i < row.size(); i++) {
+			for (auto i = 0; i < row.size(); i++)
+			{
 				data.push(row[i]);
 			}
 		}
@@ -171,7 +180,8 @@ int main()
 		return data;
 	};
 
-	auto createCanvas = [&](const auto& imageData, const auto& color, const auto& scale, const auto& bgcolor, const auto& spotcolor) {
+	auto createCanvas = [&](const auto& imageData, const auto& color, const auto& scale, const auto& bgcolor, const auto& spotcolor)
+	{
 		auto c = document.createElement("canvas");
 		auto width = sqrt(imageData.size());
 		c.width = c.height = width * scale;
@@ -181,14 +191,16 @@ int main()
 		cc.fillRect(0, 0, c.width, c.height);
 		cc.fillStyle = color;
 
-		for(auto i = 0; i < imageData.size(); i++) {
+		for (auto i = 0; i < imageData.size(); i++)
+		{
 			auto row = floor(i / width);
 			auto col = i % width;
 			// if data is 2, choose spot color, if 1 choose foreground
 			cc.fillStyle = (imageData[i] == 1) ? color : spotcolor;
 
 			// if data is 0, leave the background
-			if(imageData[i]) {
+			if (imageData[i])
+			{
 				cc.fillRect(col * scale, row * scale, scale, scale);
 			}
 		}
@@ -196,11 +208,12 @@ int main()
 		return c;
 	};
 
-	auto createIcon = [&](const auto& opts) {
+	auto createIcon = [&](const auto& opts)
+	{
 		opts = opts || {};
 		auto size = opts.size || 8;
 		auto scale = opts.scale || 4;
-		auto seed = opts.seed || floor((random()*pow(10,16))).toString(16);
+		auto seed = opts.seed || floor((random() * pow(10, 16))).toString(16);
 
 		seedrand(seed);
 

@@ -106,34 +106,46 @@ String operator+(const String& lhs, const Number& rhs)
 	return lhs + static_cast<String>(rhs);
 }
 
+/// This is an implementation of the Xorshift pseudorandom number generator.
+class PseudorandomNumberGenerator
+{
+	public:
+		void seed(const String& seed)
+		{
+			for (auto i = 0; i < 4; i++)
+			{
+				m_seed[i] = 0;
+			}
+			for (auto i = 0; i < seed.size(); i++)
+			{
+				m_seed[i % 4] = ((m_seed[i % 4] << 5) - m_seed[i % 4]) + seed[i];
+			}
+		}
+
+		Number generate()
+		{
+			// Based on Java's String.hashCode(), expanded to 4 32bit values.
+			auto t = m_seed[0] ^ (m_seed[0] << 11);
+
+			m_seed[0] = m_seed[1];
+			m_seed[1] = m_seed[2];
+			m_seed[2] = m_seed[3];
+			m_seed[3] = (m_seed[3] ^ (m_seed[3] >> 19) ^ t ^ (t >> 8));
+
+			return unsignedShiftRight(m_seed[3], 0) / unsignedShiftRight(1 << 31, 0);
+		};
+
+	private:
+		Number m_seed[4] { 0, 0, 0, 0 }; // Xorshift: [x, y, z, w] 32 bit values.
+};
+
 int main()
 {
-	// The random number is a js implementation of the Xorshift PRNG
-	Number randseed[4]; // Xorshift: [x, y, z, w] 32 bit values
-
-	auto seedrand = [&](const auto& seed)
-	{
-		for (auto i = 0; i < 4; i++)
-		{
-			randseed[i] = 0;
-		}
-		for (auto i = 0; i < seed.size(); i++)
-		{
-			randseed[i % 4] = ((randseed[i % 4] << 5) - randseed[i % 4]) + seed[i];
-		}
-	};
+	PseudorandomNumberGenerator randomNumberGenerator {};
 
 	auto rand = [&]()
 	{
-		// based on Java's String.hashCode(), expanded to 4 32bit values
-		auto t = randseed[0] ^ (randseed[0] << 11);
-
-		randseed[0] = randseed[1];
-		randseed[1] = randseed[2];
-		randseed[2] = randseed[3];
-		randseed[3] = (randseed[3] ^ (randseed[3] >> 19) ^ t ^ (t >> 8));
-
-		return unsignedShiftRight(randseed[3], 0) / unsignedShiftRight(1 << 31, 0);
+		return randomNumberGenerator.generate();
 	};
 
 	auto createColor = [&]()
@@ -215,7 +227,7 @@ int main()
 		auto scale = opts.scale || 4;
 		auto seed = opts.seed || floor((random() * pow(10, 16))).toString(16);
 
-		seedrand(seed);
+		randomNumberGenerator.seed(seed);
 
 		auto color = opts.color || createColor();
 		auto bgcolor = opts.bgcolor || createColor();

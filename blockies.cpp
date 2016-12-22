@@ -1,80 +1,189 @@
-(function() {
-	// The random number is a js implementation of the Xorshift PRNG
-	var randseed = new Array(4); // Xorshift: [x, y, z, w] 32 bit values
+#include <cmath>
+#include <cstdint>
+#include <string>
+#include <vector>
 
-	function seedrand(seed) {
-		for (var i = 0; i < randseed.length; i++) {
+/// Use "String" as an alias for std::string.
+using String = std::string;
+
+/// The Array<T> class wraps std::vector<T> and adds a few functions which are
+/// defined on arrays in JavaScript.
+template<class T>
+class Array : public std::vector<T>
+{
+	public:
+		using std::vector<T>::vector;
+
+		/// Implementation of JavaScript's Array.prototype.slice
+		Array slice(size_type startIndex, size_type count) const
+		{
+			Array::const_iterator begin = (cbegin() + startIndex);
+			return Array(begin, begin + count);
+		}
+
+		/// Implementation of JavaScript's Array.prototype.reverse
+		void reverse()
+		{
+			std::reverse(begin(), end());
+		}
+
+		/// Implementation of JavaScript's Array.prototype.push
+		void push(const T& value)
+		{
+			push_back(value);
+		}
+
+		/// Implementation of JavaScript's Array.prototype.concat
+		Array concat(const Array& other) const
+		{
+			Array concatenatedArray = *this;
+			concatenatedArray.insert(end(), other.begin(), other.end());
+			return concatenatedArray;
+		}
+};
+
+/// The Number struct wraps a "double" in an attempt to emulate how numbers are
+/// treated in JavaScript (especially with regards to bitwise operations.)
+struct Number
+{
+	public:
+		constexpr Number(double value) : m_value(value) {}
+		constexpr Number() : Number(0.0) {}
+
+		/// User-defined conversion to double, exposing the underlying value.
+		constexpr operator double() const { return m_value; }
+
+		/// User-defined conversion to string.
+		operator String() const { return std::to_string(m_value); }
+
+		/// Bitwise operators
+		constexpr Number operator<<(int n) const
+		{
+			return Number(static_cast<int32_t>(static_cast<int64_t>(m_value) & 0xFFFFFFFF) << n);
+		}
+		constexpr Number operator>>(int n) const
+		{
+			return Number(static_cast<int32_t>(static_cast<int64_t>(m_value) & 0xFFFFFFFF) >> n);
+		}
+		constexpr Number operator^(const Number& rhs) const
+		{
+			return static_cast<Number>(static_cast<int32_t>(static_cast<int64_t>(m_value) & 0xFFFFFFFF) ^ static_cast<int32_t>(static_cast<int64_t>(rhs.m_value) & 0xFFFFFFFF));
+		}
+
+		/// Post-increment operator
+		constexpr Number operator++(int unused) const
+		{
+			return Number(m_value + 1.0);
+		}
+
+		// String concatenation operator
+		String operator+(const char* rhs) const { return static_cast<String>(*this) + rhs; }
+
+		// Arithmetic operations
+		template <typename T> constexpr Number operator+(const T& rhs) const { return m_value + rhs; }
+		template <typename T> constexpr Number operator-(const T& rhs) const { return m_value - rhs; }
+		template <typename T> constexpr Number operator*(const T& rhs) const { return m_value * rhs; }
+		template <typename T> constexpr Number operator/(const T& rhs) const { return m_value / rhs; }
+
+		// Comparators
+		template <typename T> constexpr bool operator<(const T& rhs) const { return (m_value < rhs); }
+		template <typename T> constexpr bool operator==(const T& rhs) const { return (m_value == rhs); }
+
+	private:
+		double m_value { 0.0 };
+};
+
+/// This function replaces the >>> operator, which does not exist in C++
+constexpr Number unsignedShiftRight(const Number& number, int n)
+{
+	return static_cast<uint32_t>(number >> n);
+}
+
+/// This function concatenates the string-representation of a number to a
+/// string, as in JavaScript.
+String operator+(const String& lhs, const Number& rhs)
+{
+	return lhs + static_cast<String>(rhs);
+}
+
+int main()
+{
+	// The random number is a js implementation of the Xorshift PRNG
+	Number randseed[4]; // Xorshift: [x, y, z, w] 32 bit values
+
+	auto seedrand = [&](const auto& seed) {
+		for (auto i = 0; i < 4; i++) {
 			randseed[i] = 0;
 		}
-		for (var i = 0; i < seed.length; i++) {
-			randseed[i%4] = ((randseed[i%4] << 5) - randseed[i%4]) + seed.charCodeAt(i);
+		for (auto i = 0; i < seed.size(); i++) {
+			randseed[i%4] = ((randseed[i%4] << 5) - randseed[i%4]) + seed[i];
 		}
-	}
+	};
 
-	function rand() {
+	auto rand = [&]() {
 		// based on Java's String.hashCode(), expanded to 4 32bit values
-		var t = randseed[0] ^ (randseed[0] << 11);
+		auto t = randseed[0] ^ (randseed[0] << 11);
 
 		randseed[0] = randseed[1];
 		randseed[1] = randseed[2];
 		randseed[2] = randseed[3];
 		randseed[3] = (randseed[3] ^ (randseed[3] >> 19) ^ t ^ (t >> 8));
 
-		return (randseed[3]>>>0) / ((1 << 31)>>>0);
-	}
+		return unsignedShiftRight(randseed[3], 0) / unsignedShiftRight(1 << 31, 0);
+	};
 
-	function createColor() {
+	auto createColor = [&]() {
 		//saturation is the whole color spectrum
-		var h = Math.floor(rand() * 360);
+		Number h = floor(rand() * 360);
 		//saturation goes from 40 to 100, it avoids greyish colors
-		var s = ((rand() * 60) + 40) + '%';
+		auto s = ((rand() * 60) + 40) + "%";
 		//lightness can be anything from 0 to 100, but probabilities are a bell curve around 50%
-		var l = ((rand()+rand()+rand()+rand()) * 25) + '%';
+		auto l = ((rand() + rand() + rand() + rand()) * 25) + "%";
 
-		var color = 'hsl(' + h + ',' + s + ',' + l + ')';
+		auto color = "hsl(" + h + "," + s + "," + l + ")";
 		return color;
-	}
+	};
 
-	function createImageData(size) {
-		var width = size; // Only support square icons for now
-		var height = size;
+	auto createImageData = [&](const auto& size) {
+		auto width = size; // Only support square icons for now
+		auto height = size;
 
-		var dataWidth = Math.ceil(width / 2);
-		var mirrorWidth = width - dataWidth;
+		auto dataWidth = ceil(width / 2);
+		auto mirrorWidth = width - dataWidth;
 
-		var data = [];
-		for(var y = 0; y < height; y++) {
-			var row = [];
-			for(var x = 0; x < dataWidth; x++) {
+		auto data = {};
+		for(auto y = 0; y < height; y++) {
+			auto row = {};
+			for(auto x = 0; x < dataWidth; x++) {
 				// this makes foreground and background color to have a 43% (1/2.3) probability
 				// spot color has 13% chance
-				row[x] = Math.floor(rand()*2.3);
+				row[x] = floor(rand()*2.3);
 			}
-			var r = row.slice(0, mirrorWidth);
+			auto r = row.slice(0, mirrorWidth);
 			r.reverse();
 			row = row.concat(r);
 
-			for(var i = 0; i < row.length; i++) {
+			for(auto i = 0; i < row.size(); i++) {
 				data.push(row[i]);
 			}
 		}
 
 		return data;
-	}
+	};
 
-	function createCanvas(imageData, color, scale, bgcolor, spotcolor) {
-		var c = document.createElement('canvas');
-		var width = Math.sqrt(imageData.length);
+	auto createCanvas = [&](const auto& imageData, const auto& color, const auto& scale, const auto& bgcolor, const auto& spotcolor) {
+		auto c = document.createElement("canvas");
+		auto width = sqrt(imageData.size());
 		c.width = c.height = width * scale;
 
-		var cc = c.getContext('2d');
+		auto cc = c.getContext("2d");
 		cc.fillStyle = bgcolor;
 		cc.fillRect(0, 0, c.width, c.height);
 		cc.fillStyle = color;
 
-		for(var i = 0; i < imageData.length; i++) {
-			var row = Math.floor(i / width);
-			var col = i % width;
+		for(auto i = 0; i < imageData.size(); i++) {
+			auto row = floor(i / width);
+			auto col = i % width;
 			// if data is 2, choose spot color, if 1 choose foreground
 			cc.fillStyle = (imageData[i] == 1) ? color : spotcolor;
 
@@ -85,24 +194,24 @@
 		}
 
 		return c;
-	}
+	};
 
-	function createIcon(opts) {
+	auto createIcon = [&](const auto& opts) {
 		opts = opts || {};
-		var size = opts.size || 8;
-		var scale = opts.scale || 4;
-		var seed = opts.seed || Math.floor((Math.random()*Math.pow(10,16))).toString(16);
+		auto size = opts.size || 8;
+		auto scale = opts.scale || 4;
+		auto seed = opts.seed || floor((random()*pow(10,16))).toString(16);
 
 		seedrand(seed);
 
-		var color = opts.color || createColor();
-		var bgcolor = opts.bgcolor || createColor();
-		var spotcolor = opts.spotcolor || createColor();
-		var imageData = createImageData(size);
-		var canvas = createCanvas(imageData, color, scale, bgcolor, spotcolor);
+		auto color = opts.color || createColor();
+		auto bgcolor = opts.bgcolor || createColor();
+		auto spotcolor = opts.spotcolor || createColor();
+		auto imageData = createImageData(size);
+		auto canvas = createCanvas(imageData, color, scale, bgcolor, spotcolor);
 
 		return canvas;
-	}
+	};
 
-	window.blockies = {create: createIcon};
-})();
+	return 0;
+}
